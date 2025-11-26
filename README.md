@@ -30,17 +30,29 @@ Our simplistic approach makes use of three conditions whose key parameters are o
 ## CLI parameters
 
 ```
-usage: run.py [-h] -i I [-r R] [-s S] [-b B]
+usage: run.py [-h] -i FAST5 [-r CHANNEL_RANGE | -s CHANNEL_SPECIFIC]
+              [-b BLACKLIST] [--duration MIN MAX]
+              [--min-irio MIN_IRIO] [--strict-irio STRICT_IRIO]
 
 Detect events corresponding to short, single miRNA translocations
 
 optional arguments:
-  -h, --help  show this help message and exit
-  -i I        Input FAST5
-  -r R        Range of channels to analyse - format: {}-{}
-  -s S        Specific channels to analyse - channel numbers separated by
-              commas
-  -b B        Blacklisted channels - channel numbers separated by commas
+  -h, --help            show this help message and exit
+  -i FAST5, --input FAST5
+                        Path to input FAST5 file
+  -r CHANNEL_RANGE, --range CHANNEL_RANGE
+                        Channel range to analyse, start-end (end exclusive)
+  -s CHANNEL_SPECIFIC, --channels CHANNEL_SPECIFIC
+                        Specific channels, comma-separated (e.g. 1,4,8)
+  -b BLACKLIST, --blacklist BLACKLIST
+                        Channels to skip, comma-separated (applied after
+                        range/selection)
+  --duration MIN MAX    Event duration window in timepoints (default:
+                        (4, 1000))
+  --min-irio MIN_IRIO   Minimum Ir/Io threshold (default: 0.3)
+  --strict-irio STRICT_IRIO
+                        Strict Ir/Io threshold applied to all samples
+                        (default: 0.6)
 ```
 
 ## Example CLI

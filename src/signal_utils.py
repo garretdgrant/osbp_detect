@@ -25,6 +25,7 @@ def trim_start(raw_signal, trim_tps=350000):
     :param trim_tps: Int
     :return: np.array
     '''
+    # Prepend zeros so the trimmed array preserves original indexing downstream.
     return np.concatenate((np.zeros(trim_tps, dtype=float), raw_signal[trim_tps:]))
 	
 
@@ -44,6 +45,7 @@ def get_baseline(filtered_ary, lower=150, upper=400):
     if filtered_ary.mean() > consts['min_ary_mean'] and filtered_ary.std() > consts['min_ary_std']:
         
         # Find baseline
+        # Focus on the putative open-pore range to avoid event contamination.
         signal_subset = filtered_ary[(filtered_ary > lower) & (filtered_ary < upper)]
         
         # Signal range QC
@@ -100,6 +102,7 @@ def get_tranloc_idx(ex_filt_sig, baseline_pA, baseline_dev=30, t_range=(4, 150),
     upper_depth_thresh = min_depth_range[1] * baseline_pA
     upper_strict_depth = strict_depth * baseline_pA
 
+    # Boolean mask marking samples that stay within the baseline envelope.
     median_band = np.array((ex_filt_sig < baseline_pA + baseline_dev) & (ex_filt_sig > baseline_pA - baseline_dev))
     merged_idx = merge_consecutive_bool(median_band)
 
@@ -107,13 +110,13 @@ def get_tranloc_idx(ex_filt_sig, baseline_pA, baseline_dev=30, t_range=(4, 150),
     for key, idx in merged_idx:
         if key == False:
             duration = idx[1] - idx[0]
-            # Filter 1
+            # Filter 1: keep only candidate drops that last within the allowed time window.
             if duration >= min_duration and duration <= max_duration:
                 drop_current = ex_filt_sig[idx[0]:idx[1]]
                 min_current = drop_current.min()
-                # Filter 2
+                # Filter 2: reject segments that do not drop far enough (or drop too far).
                 if min_current < upper_depth_thresh and min_current > lower_depth_thresh:
-                    # Filter 3
+                    # Filter 3: require every point in the segment to stay below the strict Ir/Io ceiling.
                     if np.all(drop_current < upper_strict_depth):
                         filtered_idx.append(idx)
     print('{} events detected.'.format(len(filtered_idx)))
@@ -145,9 +148,11 @@ def detect_events(sig_ary, **kwargs):
     
     # 1. Trim
     trim_sig = trim_start(sig_ary)
+    # Removing the initial drift keeps indices stable while discarding the high-noise warm-up region.
     
     # 2. Determine open pore baseline current
     open_pA = get_baseline(trim_sig)
+    # Without a reliable baseline Io we cannot reason about Ir/Io, so bail out early if it fails.
     
     # 3. Find events
     if open_pA is not None:

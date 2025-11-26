@@ -52,6 +52,7 @@ class OsBp_FAST5():
         
         raw_signal = channel_obj['Signal'][()]
         
+        # Bundle the waveform with the metadata needed for downstream pA conversion.
         return Channel_Info(
             raw_signal=raw_signal,
             digitisation=digi,
