@@ -77,7 +77,9 @@ def _parse_channel_list(raw_value: str) -> List[int]:
         raise ValueError("Channel list must be comma-separated integers.") from exc
 
 
-def _resolve_channel_selection(args: argparse.Namespace, parser: argparse.ArgumentParser) -> List[int]:
+def _resolve_channel_selection(
+    args: argparse.Namespace, parser: argparse.ArgumentParser
+) -> List[int]:
     """Validate the caller's channel selection and remove any blacklisted ids."""
     if args.channel_range and args.channel_specific:
         parser.error("Specify only one of -r/--range or -s/--channels.")
@@ -94,7 +96,9 @@ def _resolve_channel_selection(args: argparse.Namespace, parser: argparse.Argume
         except ValueError as exc:
             parser.error(str(exc))
     else:
-        parser.error("You must provide channel indices via -r/--range or -s/--channels.")
+        parser.error(
+            "You must provide channel indices via -r/--range or -s/--channels."
+        )
 
     blacklist: Iterable[int] = []
     if args.blacklist:

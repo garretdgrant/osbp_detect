@@ -1,162 +1,169 @@
-# Libraries
+"""Signal processing helpers used by the CLI and GUI pipelines."""
+
+from __future__ import annotations
+
+from itertools import groupby
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
-from itertools import groupby
+
+from src.fast5_utils import ChannelInfo
 
 
-# Helpers
+def sec_to_tp(sec: float, sampl_rate: float) -> int:
+    """
+    Convert seconds into timepoints using the instrument sampling rate.
 
-def sec_to_tp(sec, sampl_rate):
-    '''
-    Convert from seconds to timepoint
-    
-    :param sec: Float
-    :param sampl_rate: Float
-    :return: Int
-    '''
+    Parameters
+    ----------
+    sec:
+        Duration in seconds.
+    sampl_rate:
+        Digitizer sampling rate reported in Hz.
+    """
     return int(sec * sampl_rate)
-	
 
-def trim_start(raw_signal, trim_tps=350000):
-    '''
-    Trim first n timepoints
-    
-    :param raw_signal: np.array
-    :param trim_tps: Int
-    :return: np.array
-    '''
-    # Prepend zeros so the trimmed array preserves original indexing downstream.
-    return np.concatenate((np.zeros(trim_tps, dtype=float), raw_signal[trim_tps:]))
-	
 
-def get_baseline(filtered_ary, lower=150, upper=400):
-    '''
-    Determine baseline open pore current
-    
-    :param filtered_ary: np.array
-    :param lower: Int
-    :param upper: Int
-    :return: Float or None
-    '''
-    consts = {'min_ary_mean': 50.0, 'min_ary_std': 10.0, 'min_subset_n_prop': 0.01}
-    baseline_out = None
-    
-    # Channel QC
-    if filtered_ary.mean() > consts['min_ary_mean'] and filtered_ary.std() > consts['min_ary_std']:
-        
-        # Find baseline
-        # Focus on the putative open-pore range to avoid event contamination.
+def trim_start(raw_signal: np.ndarray, trim_tps: int = 350_000) -> np.ndarray:
+    """
+    Zero out the initial region to stabilize indices during downstream filtering.
+
+    Nanopore bulk acquisitions often have an initial drift or warm-up period. The
+    detector discards it by replacing the head of the trace with zeros while
+    preserving the downstream indices expected by the heuristics.
+    """
+    prefix = np.zeros(trim_tps, dtype=float)
+    return np.concatenate((prefix, raw_signal[trim_tps:]))
+
+
+def get_baseline(
+    filtered_ary: np.ndarray, lower: int = 150, upper: int = 400
+) -> Optional[float]:
+    """
+    Estimate the open-pore current Io using a robust median inside [lower, upper].
+
+    Signals whose mean, standard deviation, or in-range density fall below the
+    empirically tuned thresholds are rejected and reported as bad channels.
+    """
+    consts = {"min_ary_mean": 50.0, "min_ary_std": 10.0, "min_subset_n_prop": 0.01}
+    baseline_out: Optional[float] = None
+
+    if (
+        filtered_ary.mean() > consts["min_ary_mean"]
+        and filtered_ary.std() > consts["min_ary_std"]
+    ):
         signal_subset = filtered_ary[(filtered_ary > lower) & (filtered_ary < upper)]
-        
-        # Signal range QC
-        if len(signal_subset) > len(filtered_ary) * consts['min_subset_n_prop']:
-            baseline_out = np.median(signal_subset)
-    
+        if len(signal_subset) > len(filtered_ary) * consts["min_subset_n_prop"]:
+            baseline_out = float(np.median(signal_subset))
+
     if baseline_out is None:
-        print('Failed to identify baseline Io - bad channel')
-        
+        print("Failed to identify baseline Io - bad channel")
+
     return baseline_out
-	
-	
-def merge_consecutive_bool(lst):
-    '''
+
+
+def merge_consecutive_bool(
+    mask: Sequence[bool],
+) -> List[Tuple[bool, Tuple[int, int]]]:
+    """
+    Compress boolean runs into contiguous spans.
+
     Example:
         [True, True, False, False, False, True] => [(True, (0, 2)), (False, (2, 5)), (True, (5, 6))]
-        
-    :params condition: np.array<Bool>
-    :return: List<Bool, Tup<Int, Int>>
-    '''
+    """
     run_sum = 0
-    out_lst = []
-    count_bool = [(key, sum(1 for _ in group)) for key, group in groupby(lst)]
-    for tup in count_bool:
+    out_lst: List[Tuple[bool, Tuple[int, int]]] = []
+    count_bool = [(key, sum(1 for _ in group)) for key, group in groupby(mask)]
+    for value, count in count_bool:
         start = run_sum
-        run_sum += tup[1]
-        out_lst.append((tup[0], (start, run_sum)))
-        
-    # Must start and end with True state
-    
-    if out_lst[0][0] == False:
+        run_sum += count
+        out_lst.append((value, (start, run_sum)))
+
+    if not out_lst:
+        return []
+
+    if not out_lst[0][0]:
         out_lst = out_lst[1:]
-    if out_lst[-1][0] == False:
+    if out_lst and not out_lst[-1][0]:
         out_lst = out_lst[:-1]
     return out_lst
 
 
-def get_tranloc_idx(ex_filt_sig, baseline_pA, baseline_dev=30, t_range=(4, 150), min_depth_range=(0.0, 0.4), strict_depth=0.6):
-    '''
-    Get predicted indices of translocation events
-    
-    :param ex_filt_sig: np.array<Float>
-    :param baseline_pA: Float
-    :param baseline_dev: Int
-    :param t_range: Tuple
-    :param depth_range: Tuple
-    :return: List<Tuple>
-    '''
+def get_tranloc_idx(
+    ex_filt_sig: np.ndarray,
+    baseline_pA: float,
+    baseline_dev: float = 30,
+    t_range: Tuple[int, int] = (4, 150),
+    min_depth_range: Tuple[float, float] = (0.0, 0.4),
+    strict_depth: float = 0.6,
+) -> List[Tuple[int, int]]:
+    """
+    Locate translocation windows by filtering contiguous drops in the signal.
+
+    The baseline window (baseline_pA ± baseline_dev) defines the open channel.
+    Events are kept when (1) they fall within the t_range duration bounds,
+    (2) their minima stay between the min_depth_range proportions of Io, and
+    (3) they never exceed the stricter Ir/Io ceiling.
+    """
     assert len(t_range) == 2
     assert len(min_depth_range) == 2
-    min_duration = t_range[0]
-    max_duration = t_range[1]
+    min_duration, max_duration = t_range
     lower_depth_thresh = min_depth_range[0] * baseline_pA
     upper_depth_thresh = min_depth_range[1] * baseline_pA
     upper_strict_depth = strict_depth * baseline_pA
 
-    # Boolean mask marking samples that stay within the baseline envelope.
-    median_band = np.array((ex_filt_sig < baseline_pA + baseline_dev) & (ex_filt_sig > baseline_pA - baseline_dev))
+    median_band = np.array(
+        (ex_filt_sig < baseline_pA + baseline_dev)
+        & (ex_filt_sig > baseline_pA - baseline_dev)
+    )
     merged_idx = merge_consecutive_bool(median_band)
 
-    filtered_idx = []
+    filtered_idx: List[Tuple[int, int]] = []
     for key, idx in merged_idx:
-        if key == False:
+        if not key:
             duration = idx[1] - idx[0]
-            # Filter 1: keep only candidate drops that last within the allowed time window.
-            if duration >= min_duration and duration <= max_duration:
-                drop_current = ex_filt_sig[idx[0]:idx[1]]
+            if min_duration <= duration <= max_duration:
+                drop_current = ex_filt_sig[idx[0] : idx[1]]
                 min_current = drop_current.min()
-                # Filter 2: reject segments that do not drop far enough (or drop too far).
-                if min_current < upper_depth_thresh and min_current > lower_depth_thresh:
-                    # Filter 3: require every point in the segment to stay below the strict Ir/Io ceiling.
+                if upper_depth_thresh > min_current > lower_depth_thresh:
                     if np.all(drop_current < upper_strict_depth):
                         filtered_idx.append(idx)
-    print('{} events detected.'.format(len(filtered_idx)))
+    print(f"{len(filtered_idx)} events detected.")
     return filtered_idx
-	
 
-# Main
-	
-def get_signal_pA(chann_info):
-    '''
-    Convert raw Nanopore signals to pA
-    
-    :param chann_info: <Channel_Info>
-    :return: np.array
-    '''
+
+def get_signal_pA(chann_info: ChannelInfo) -> np.ndarray:
+    """
+    Convert ADC units to picoamps using channel calibration metadata.
+
+    Parameters
+    ----------
+    chann_info:
+        ChannelInfo structure returned by ``OsBp_FAST5.get_channel_raw``; the sampling
+        rate is carried forward and consumed by downstream heuristics.
+    """
     raw_unit = chann_info.parange / chann_info.digitisation
-    pa_sig = (chann_info.raw_signal + chann_info.offset) * raw_unit
-    return pa_sig
-	
-	
-def detect_events(sig_ary, **kwargs):
-    '''
-    Detect events from a single channel
-    
-    :param sig_ary: np.array<Float>
-    :return: Dict
-    '''
-    out_dict = {'open_current': -1.0, 'event_idx': []}
-    
-    # 1. Trim
+    return (chann_info.raw_signal + chann_info.offset) * raw_unit
+
+
+def detect_events(sig_ary: np.ndarray, **kwargs) -> Dict[str, object]:
+    """
+    Execute the baseline estimation + translocation detection pipeline.
+
+    Parameters
+    ----------
+    sig_ary:
+        Pore signal in picoamps for a single channel.
+    kwargs:
+        Forwarded to ``get_tranloc_idx`` to customize durations and depth limits.
+    """
+    out_dict: Dict[str, object] = {"open_current": -1.0, "event_idx": []}
+
     trim_sig = trim_start(sig_ary)
-    # Removing the initial drift keeps indices stable while discarding the high-noise warm-up region.
-    
-    # 2. Determine open pore baseline current
     open_pA = get_baseline(trim_sig)
-    # Without a reliable baseline Io we cannot reason about Ir/Io, so bail out early if it fails.
-    
-    # 3. Find events
+
     if open_pA is not None:
         transloc_idx = get_tranloc_idx(trim_sig, open_pA, **kwargs)
-        out_dict['open_current'] = open_pA
-        out_dict['event_idx'] = transloc_idx
+        out_dict["open_current"] = open_pA
+        out_dict["event_idx"] = transloc_idx
     return out_dict

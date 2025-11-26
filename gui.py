@@ -4,22 +4,13 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from typing import Optional
 
-from tkinter import (
-    NSEW,
-    Button,
-    Entry,
-    Frame,
-    Label,
-    StringVar,
-    Tk,
-    filedialog,
-    messagebox,
-)
+from tkinter import NSEW, StringVar, Tk, filedialog, messagebox
+from tkinter import ttk
 
 from run import MIN_IrIo, STRICT_IrIo, TPS_RANGE, start_detection
 
-API_NAME = "OsBp Detect v1.2"
-WINDOW_SIZE = (300, 420)
+API_NAME = "OsBp Detect v2.0"
+WINDOW_SIZE = (400, 550)
 
 
 class DetectionGUI:
@@ -29,6 +20,28 @@ class DetectionGUI:
         self.root = Tk()
         self.root.title(API_NAME)
         self.root.geometry(f"{WINDOW_SIZE[0]}x{WINDOW_SIZE[1]}")
+        # Configure basic layout
+        self.root.columnconfigure(0, weight=1)
+        self.root.columnconfigure(1, weight=1)
+
+        # Style/theme setup
+        style = ttk.Style(self.root)
+        style.theme_use("clam")  # cleaner, cross-platform look
+
+        # Dark-window + light-entry styling for macOS
+        self.root.configure(bg="#202020")
+
+        style.configure("TLabel", background="#202020", foreground="white")
+        style.configure("TFrame", background="#202020")
+
+        style.configure(
+            "TEntry",
+            foreground="#000000",
+            fieldbackground="#FFFFFF",
+            background="#FFFFFF",
+            insertcolor="#000000",
+        )
+        style.configure("TButton", padding=4)
 
         self.in_fast5: Optional[Path] = None
         self.out_fast5: Optional[Path] = None
@@ -44,52 +57,64 @@ class DetectionGUI:
 
     def _build_layout(self) -> None:
         """Lay out the 3 input blocks: file I/O, channel range, detection thresholds."""
-        Frame(self.root, height=10).grid(row=0)
-        Label(self.root, text="1. File I/O:", font=("Helvetica", 10, "bold")).grid(row=1)
-        Button(self.root, text="Open Input File", command=self.open_file).grid(
-            row=2, column=1, pady=4, sticky=NSEW
+        ttk.Frame(self.root, height=10).grid(row=0, column=0)
+        ttk.Label(
+            self.root, text="1. File I/O:", font=("Helvetica", 10, "bold")
+        ).grid(row=1, column=0, columnspan=2, padx=20, pady=(0, 4), sticky="w")
+        ttk.Button(
+            self.root, text="Open Input File", command=self.open_file
+        ).grid(row=2, column=0, columnspan=2, padx=20, pady=4, sticky="ew")
+        ttk.Frame(self.root, height=5).grid(row=3, column=0)
+        ttk.Button(
+            self.root, text="Save Output File", command=self.save_file
+        ).grid(row=4, column=0, columnspan=2, padx=20, pady=4, sticky="ew")
+
+        ttk.Frame(self.root, height=15).grid(row=5, column=0)
+        ttk.Frame(self.root, height=2).grid(row=6, column=0, columnspan=2, sticky="ew")
+        ttk.Frame(self.root, height=10).grid(row=7, column=0)
+
+        ttk.Label(
+            self.root, text="2. Channels:", font=("Helvetica", 10, "bold")
+        ).grid(row=8, column=0, columnspan=2, padx=20, pady=(0, 4), sticky="w")
+        ttk.Label(self.root, text="Start").grid(row=9, column=0, padx=10, sticky="e")
+        ttk.Entry(self.root, textvariable=self.start_var).grid(
+            row=9, column=1, padx=10, pady=3, sticky="ew"
         )
-        Frame(self.root, height=1).grid(row=3)
-        Button(self.root, text="Save Output File", command=self.save_file).grid(
-            row=4, column=1, pady=4, sticky=NSEW
+        ttk.Label(self.root, text="End").grid(row=10, column=0, padx=10, sticky="e")
+        ttk.Entry(self.root, textvariable=self.end_var).grid(
+            row=10, column=1, padx=10, pady=3, sticky="ew"
         )
 
-        Frame(self.root, height=15).grid(row=5)
-        Frame(self.root, height=2, width=WINDOW_SIZE[0] - 150, bg="black").grid(
-            row=6, column=1
+        ttk.Frame(self.root, height=15).grid(row=11, column=0)
+        ttk.Frame(self.root, height=2).grid(row=12, column=0, columnspan=2, sticky="ew")
+        ttk.Frame(self.root, height=10).grid(row=13, column=0)
+
+        ttk.Label(
+            self.root, text="3. Thresholds:", font=("Helvetica", 10, "bold")
+        ).grid(row=14, column=0, columnspan=2, padx=20, pady=(0, 4), sticky="w")
+        ttk.Label(self.root, text="min(time)").grid(row=15, column=0, padx=10, sticky="e")
+        ttk.Entry(self.root, textvariable=self.min_time_var).grid(
+            row=15, column=1, padx=10, pady=3, sticky="ew"
         )
-        Frame(self.root, height=10).grid(row=7)
-
-        Label(self.root, text="2. Channels:", font=("Helvetica", 10, "bold")).grid(row=8)
-        Label(self.root, text="Start").grid(row=9)
-        Label(self.root, text="End").grid(row=10)
-        Entry(self.root, textvariable=self.start_var).grid(row=9, column=1)
-        Entry(self.root, textvariable=self.end_var).grid(row=10, column=1)
-
-        Frame(self.root, height=15).grid(row=11)
-        Frame(self.root, height=2, width=WINDOW_SIZE[0] - 150, bg="black").grid(
-            row=12, column=1
+        ttk.Label(self.root, text="max(time)").grid(row=16, column=0, padx=10, sticky="e")
+        ttk.Entry(self.root, textvariable=self.max_time_var).grid(
+            row=16, column=1, padx=10, pady=3, sticky="ew"
         )
-        Frame(self.root, height=10).grid(row=13)
-
-        Label(self.root, text="3. Thresholds:", font=("Helvetica", 10, "bold")).grid(row=14)
-        Label(self.root, text="min(time)").grid(row=15)
-        Label(self.root, text="max(time)").grid(row=16)
-        Label(self.root, text="all(Ir/Io)").grid(row=17)
-        Label(self.root, text="min(Ir/Io)").grid(row=18)
-        Entry(self.root, textvariable=self.min_time_var).grid(row=15, column=1)
-        Entry(self.root, textvariable=self.max_time_var).grid(row=16, column=1)
-        Entry(self.root, textvariable=self.all_irio_var).grid(row=17, column=1)
-        Entry(self.root, textvariable=self.min_irio_var).grid(row=18, column=1)
-
-        Frame(self.root, height=15).grid(row=19)
-        Frame(self.root, height=2, width=WINDOW_SIZE[0] - 150, bg="black").grid(
-            row=20, column=1
+        ttk.Label(self.root, text="all(Ir/Io)").grid(row=17, column=0, padx=10, sticky="e")
+        ttk.Entry(self.root, textvariable=self.all_irio_var).grid(
+            row=17, column=1, padx=10, pady=3, sticky="ew"
         )
-        Frame(self.root, height=10).grid(row=21)
+        ttk.Label(self.root, text="min(Ir/Io)").grid(row=18, column=0, padx=10, sticky="e")
+        ttk.Entry(self.root, textvariable=self.min_irio_var).grid(
+            row=18, column=1, padx=10, pady=3, sticky="ew"
+        )
 
-        Button(self.root, text="Run", command=self.execute, bg="green").grid(
-            row=22, column=1, pady=4, sticky=NSEW
+        ttk.Frame(self.root, height=15).grid(row=19, column=0)
+        ttk.Frame(self.root, height=2).grid(row=20, column=0, columnspan=2, sticky="ew")
+        ttk.Frame(self.root, height=10).grid(row=21, column=0)
+
+        ttk.Button(self.root, text="Run", command=self.execute).grid(
+            row=22, column=0, columnspan=2, padx=20, pady=8, sticky="ew"
         )
 
     def open_file(self) -> None:
@@ -103,6 +128,7 @@ class DetectionGUI:
             self.in_fast5 = Path(selected).expanduser()
 
     def save_file(self) -> None:
+        """Prompt for an output TSV path that will receive redirected stdout."""
         selected = filedialog.asksaveasfilename(
             initialdir=".",
             title="Select file",
@@ -168,7 +194,7 @@ class DetectionGUI:
                 strict_thresh_i=all_irio,
             )
 
-        messagebox.showinfo(API_NAME, "Analysis complete!")
+        messagebox.showinfo(API_NAME, f"Analysis complete!\nOutput: {out_file}")
         self.root.destroy()
 
     def run(self) -> None:
