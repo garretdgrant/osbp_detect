@@ -32,6 +32,9 @@ install-deps:
 run-gui:
 	python3 gui.py
 
+update-tool:
+	git pull origin master
+
 # Convenience recipe to run all install steps (after Homebrew is installed).
 install-prereqs: install-python-and-git create-venv upgrade-pip install-deps
 	@echo "Environment ready. Activate it with 'source .venv/bin/activate' before running commands."
