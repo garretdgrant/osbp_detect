@@ -7,7 +7,7 @@ from typing import Optional
 from tkinter import NSEW, StringVar, Tk, filedialog, messagebox
 from tkinter import ttk
 
-from run import MIN_IrIo, STRICT_IrIo, TPS_RANGE, start_detection
+from run import MIN_IrIo, STRICT_IrIo, TPS_RANGE, start_detection, CHANNEL_RANGE
 
 API_NAME = "OsBp Detect v2.0"
 WINDOW_SIZE = (400, 550)
@@ -46,8 +46,8 @@ class DetectionGUI:
         self.in_fast5: Optional[Path] = None
         self.out_fast5: Optional[Path] = None
 
-        self.start_var = StringVar()
-        self.end_var = StringVar()
+        self.start_var = StringVar(value=str(CHANNEL_RANGE[0]))
+        self.end_var = StringVar(value=str(CHANNEL_RANGE[1]))
         self.min_time_var = StringVar(value=str(TPS_RANGE[0]))
         self.max_time_var = StringVar(value=str(TPS_RANGE[1]))
         self.all_irio_var = StringVar(value=str(STRICT_IrIo))
