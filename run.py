@@ -6,9 +6,10 @@ from src.fast5_utils import OsBp_FAST5
 from src.signal_utils import detect_events, get_signal_pA
 
 
-TPS_RANGE: Tuple[int, int] = (4, 1000)
+CHANNEL_RANGE: Tuple[int, int] = (1, 512)
+TPS_RANGE: Tuple[int, int] = (4, 1200)
 IO_RANGE: Tuple[int, int] = (150, 300)
-MIN_IrIo: float = 0.30
+MIN_IrIo: float = 0.55
 STRICT_IrIo: float = 0.60
 
 
