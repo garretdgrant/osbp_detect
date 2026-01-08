@@ -1,25 +1,31 @@
 import argparse
+import sys
 from pathlib import Path
-from typing import Iterable, List, Optional, Sequence, Tuple, Union
+from typing import Iterable, List, Optional, Sequence, TextIO, Tuple, Union
 
 from src.fast5_utils import OsBp_FAST5
 from src.signal_utils import detect_events, get_signal_pA
 
 
-CHANNEL_RANGE: Tuple[int, int] = (1, 512)
-TPS_RANGE: Tuple[int, int] = (4, 1200)
-IO_RANGE: Tuple[int, int] = (150, 300)
-MIN_IrIo: float = 0.55
-STRICT_IrIo: float = 0.60
+CHANNEL_RANGE: Tuple[int, int] = (1, 512)  # Default channel window exposed in the GUI.
+TPS_RANGE: Tuple[int, int] = (4, 1200)  # Event duration bounds in samples ("timepoints").
+IO_RANGE: Tuple[int, int] = (150, 300)  # Expected open-pore current window in pA.
+MIN_IrIo: float = 0.55  # Minimum event depth ratio to Io (Ir/Io).
+STRICT_IrIo: float = 0.60  # Strict Ir/Io threshold applied across all samples.
+MAX_EVENTS_CLEAN: int = 20000  # Drop channels above this count in the cleaned TSV.
 
 
 def start_detection(
     file_in: Union[Path, str],
     channel_query: Sequence[int],
+    output_raw: TextIO,
+    output_clean: TextIO,
+    output_skipped: TextIO,
     duration: Tuple[int, int] = TPS_RANGE,
     min_thresh_i: float = MIN_IrIo,
     strict_thresh_i: float = STRICT_IrIo,
     io_range: Tuple[int, int] = IO_RANGE,
+    max_events_clean: int = MAX_EVENTS_CLEAN,
 ) -> None:
     """Run detection for the requested FAST5 and channels."""
     if not channel_query:
@@ -29,9 +35,9 @@ def start_detection(
     fast5_path = Path(file_in)
     with OsBp_FAST5(str(fast5_path)) as g:
         for channel_no in channel_query:
-            print(f"Processing channel {channel_no}...")
+            print(f"Processing channel {channel_no}...", file=sys.stderr)
             info_obj = g.get_channel_raw(channel_no)
-            # Convert the raw ADC trace into absolute picoamp measurements.
+            # Convert raw ADC samples into absolute picoamp measurements.
             signal_ary = get_signal_pA(info_obj)
             detect_out = detect_events(
                 signal_ary,
@@ -42,17 +48,48 @@ def start_detection(
             open_pA = detect_out["open_current"]
             # Skip channels whose inferred baseline current lies outside the expected pore window.
             if io_range[0] <= open_pA <= io_range[1]:
+                event_idx = detect_out["event_idx"]
+                event_count = len(event_idx)
+                print(f"Processing channel {channel_no}...", file=output_raw)
+                print(f"{event_count} events detected.", file=output_raw)
                 print(
                     f"# Channel {channel_no}, Sampling rate: {info_obj.sampling_rate} Hz, "
-                    f"Io: {open_pA} pA\n"
+                    f"Io: {open_pA} pA\n",
+                    file=output_raw,
                 )
-                for event_id, event_idx in enumerate(detect_out["event_idx"], start=1):
-                    start, end = event_idx
+                for event_id, event_window in enumerate(event_idx, start=1):
+                    start, end = event_window
                     this_event = signal_ary[start:end]
                     min_pA = float(this_event.min())
-                    # Report event start/end indices plus the depth ratio to open current.
-                    print(f"{event_id}\t{start}\t{end}\t{min_pA / open_pA}")
-            print("")
+                    # Report event window indices plus depth ratio to open current.
+                    print(
+                        f"{event_id}\t{start}\t{end}\t{min_pA / open_pA}",
+                        file=output_raw,
+                    )
+                print("", file=output_raw)
+
+                if event_count <= max_events_clean:
+                    print(f"Processing channel {channel_no}...", file=output_clean)
+                    print(f"{event_count} events detected.", file=output_clean)
+                    # Mirror the raw output, but drop high-event channels.
+                    print(
+                        f"# Channel {channel_no}, Sampling rate: {info_obj.sampling_rate} Hz, "
+                        f"Io: {open_pA} pA\n",
+                        file=output_clean,
+                    )
+                    for event_id, event_window in enumerate(event_idx, start=1):
+                        start, end = event_window
+                        this_event = signal_ary[start:end]
+                        min_pA = float(this_event.min())
+                        print(
+                            f"{event_id}\t{start}\t{end}\t{min_pA / open_pA}",
+                        file=output_clean,
+                    )
+                    print("", file=output_clean)
+                else:
+                    print(f"Skipped channel {channel_no}", file=output_skipped)
+                    print(f"{event_count} events detected", file=output_skipped)
+                    print("", file=output_skipped)
 
 
 def _parse_channel_range(raw_value: str) -> List[int]:
@@ -163,6 +200,34 @@ def cli(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         default=STRICT_IrIo,
         help="Strict Ir/Io threshold applied to all samples (default: %(default)s)",
     )
+    parser.add_argument(
+        "-o",
+        "--output",
+        metavar="TSV",
+        help="Output TSV for all detected events (default: <input>.detections.tsv)",
+    )
+    parser.add_argument(
+        "--output-clean",
+        metavar="TSV",
+        help=(
+            "Output TSV excluding channels with too many events "
+            "(default: <input>.detections.cleaned.tsv)"
+        ),
+    )
+    parser.add_argument(
+        "--output-skipped",
+        metavar="TSV",
+        help=(
+            "Output TSV listing channels excluded from the cleaned output "
+            "(default: <input>.detections.skipped.tsv)"
+        ),
+    )
+    parser.add_argument(
+        "--max-events-clean",
+        type=int,
+        default=MAX_EVENTS_CLEAN,
+        help="Max events per channel to keep in cleaned output (default: %(default)s)",
+    )
     args = parser.parse_args(args=argv)
 
     input_path = Path(args.input).expanduser()
@@ -171,18 +236,43 @@ def cli(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
 
     args.input_path = input_path
     args.channels = _resolve_channel_selection(args, parser)
+    default_output = input_path.with_name(f"{input_path.stem}.detections.tsv")
+    default_output_clean = input_path.with_name(
+        f"{input_path.stem}.detections.cleaned.tsv"
+    )
+    default_output_skipped = input_path.with_name(
+        f"{input_path.stem}.detections.skipped.tsv"
+    )
+    args.output_path = Path(args.output).expanduser() if args.output else default_output
+    args.output_clean_path = (
+        Path(args.output_clean).expanduser()
+        if args.output_clean
+        else default_output_clean
+    )
+    args.output_skipped_path = (
+        Path(args.output_skipped).expanduser()
+        if args.output_skipped
+        else default_output_skipped
+    )
     return args
 
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
     args = cli(argv)
-    start_detection(
-        file_in=args.input_path,
-        channel_query=args.channels,
-        duration=tuple(args.duration),
-        min_thresh_i=args.min_irio,
-        strict_thresh_i=args.strict_irio,
-    )
+    with args.output_path.open("w", encoding="utf-8") as raw_fh, args.output_clean_path.open(
+        "w", encoding="utf-8"
+    ) as clean_fh, args.output_skipped_path.open("w", encoding="utf-8") as skipped_fh:
+        start_detection(
+            file_in=args.input_path,
+            channel_query=args.channels,
+            output_raw=raw_fh,
+            output_clean=clean_fh,
+            output_skipped=skipped_fh,
+            duration=tuple(args.duration),
+            min_thresh_i=args.min_irio,
+            strict_thresh_i=args.strict_irio,
+            max_events_clean=args.max_events_clean,
+        )
 
 
 if __name__ == "__main__":

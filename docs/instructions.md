@@ -59,11 +59,18 @@ just run-gui
 ### CLI
 
 ```bash
-python3 run.py -i /path/to/file.fast5 -r 1-64 > output.tsv
+python3 run.py -i /path/to/file.fast5 -r 1-64
 ```
 
-Use `-s` for explicit channel lists and `-b` to blacklist channels. Redirect
-stdout to a `.tsv` file to persist results.
+Use `-s` for explicit channel lists and `-b` to blacklist channels. The CLI now
+creates three TSVs by default:
+
+- `<input>.detections.tsv` for all detected events
+- `<input>.detections.cleaned.tsv` excluding channels with too many events
+- `<input>.detections.skipped.tsv` listing the excluded channels
+
+Override filenames with `--output`, `--output-clean`, and `--output-skipped`.
+Control the cleaning threshold via `--max-events-clean` (default: 20000).
 
 ## C. Update Software
 

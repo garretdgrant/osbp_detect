@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from contextlib import redirect_stdout
+from datetime import datetime
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -62,11 +63,11 @@ class DetectionGUI:
             self.root, text="1. File I/O:", font=("Helvetica", 10, "bold")
         ).grid(row=1, column=0, columnspan=2, padx=20, pady=(0, 4), sticky="w")
         ttk.Button(
-            self.root, text="Open Input File", command=self.open_file
+            self.root, text="Open FAST5 File", command=self.open_file
         ).grid(row=2, column=0, columnspan=2, padx=20, pady=4, sticky="ew")
         ttk.Frame(self.root, height=5).grid(row=3, column=0)
         ttk.Button(
-            self.root, text="Save Output File", command=self.save_file
+            self.root, text="Select Output Folder", command=self.save_file
         ).grid(row=4, column=0, columnspan=2, padx=20, pady=4, sticky="ew")
 
         ttk.Frame(self.root, height=15).grid(row=5, column=0)
@@ -128,12 +129,8 @@ class DetectionGUI:
             self.in_fast5 = Path(selected).expanduser()
 
     def save_file(self) -> None:
-        """Prompt for an output TSV path that will receive redirected stdout."""
-        selected = filedialog.asksaveasfilename(
-            initialdir=".",
-            title="Select file",
-            defaultextension=".tsv",
-        )
+        """Prompt for a parent directory that will receive detection results."""
+        selected = filedialog.askdirectory(initialdir=".", title="Select output folder")
         if selected:
             self.out_fast5 = Path(selected).expanduser()
 
@@ -143,7 +140,7 @@ class DetectionGUI:
             messagebox.showerror("Error", "Please specify the input file")
             return
         if not self.out_fast5:
-            messagebox.showerror("Error", "Please specify the output file")
+            messagebox.showerror("Error", "Please specify the output folder")
             return
 
         try:
@@ -174,28 +171,57 @@ class DetectionGUI:
             return
 
         channel_ids = list(range(start_int, end_int + 1))
-        out_file = self.out_fast5.resolve()
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        base_dir = self.out_fast5.resolve()
+        run_dir = base_dir / f"{timestamp}_osbp_result"
+        if run_dir.exists():
+            suffix = 1
+            while (base_dir / f"{timestamp}_osbp_result_{suffix}").exists():
+                suffix += 1
+            run_dir = base_dir / f"{timestamp}_osbp_result_{suffix}"
+        run_dir.mkdir(parents=True, exist_ok=False)
 
-        with out_file.open("w", encoding="utf-8") as handle, redirect_stdout(handle):
-            print("  _   _   _   _   _   _   _   _   _   _  ")
-            print(" / \\ / \\ / \\ / \\ / \\ / \\ / \\ / \\ / \\ / \\ ")
-            print("( O | s | B | p | D | e | t | e | c | t )")
-            print(" \\_/ \\_/ \\_/ \\_/ \\_/ \\_/ \\_/ \\_/ \\_/ \\_/ \n")
-            print("=============  Thresholds  =============")
-            print(f"Event duration (in tps): {t_min} - {t_max}")
-            print(f"Lowest Ir/Io < {min_irio}")
-            print(f"All Ir/Io < {all_irio}")
-            print("========================================\n")
+        out_file = run_dir / "detections.tsv"
+
+        suffix = out_file.suffix or ".tsv"
+        clean_file = out_file.with_name(f"{out_file.stem}.cleaned{suffix}")
+        skipped_file = out_file.with_name(f"{out_file.stem}.skipped{suffix}")
+
+        def _write_header(handle: object) -> None:
+            print("  _   _   _   _   _   _   _   _   _   _  ", file=handle)
+            print(" / \\ / \\ / \\ / \\ / \\ / \\ / \\ / \\ / \\ / \\ ", file=handle)
+            print("( O | s | B | p | D | e | t | e | c | t )", file=handle)
+            print(" \\_/ \\_/ \\_/ \\_/ \\_/ \\_/ \\_/ \\_/ \\_/ \\_/ \n", file=handle)
+            print("=============  Thresholds  =============", file=handle)
+            print(f"Event duration (in tps): {t_min} - {t_max}", file=handle)
+            print(f"Lowest Ir/Io < {min_irio}", file=handle)
+            print(f"All Ir/Io < {all_irio}", file=handle)
+            print("========================================\n", file=handle)
+
+        with out_file.open("w", encoding="utf-8") as raw_handle, clean_file.open(
+            "w", encoding="utf-8"
+        ) as clean_handle, skipped_file.open("w", encoding="utf-8") as skipped_handle:
+            _write_header(raw_handle)
+            _write_header(clean_handle)
+            _write_header(skipped_handle)
             start_detection(
                 self.in_fast5,
                 channel_ids,
+                output_raw=raw_handle,
+                output_clean=clean_handle,
+                output_skipped=skipped_handle,
                 duration=(t_min, t_max),
                 min_thresh_i=min_irio,
                 strict_thresh_i=all_irio,
             )
 
-        messagebox.showinfo(API_NAME, f"Analysis complete!\nOutput: {out_file}")
+        messagebox.showinfo(
+            API_NAME,
+            f"Analysis complete!\nOutput: {out_file}\nCleaned: {clean_file}\nSkipped: {skipped_file}",
+        )
+        self.root.quit()
         self.root.destroy()
+        sys.exit(0)
 
     def run(self) -> None:
         """Start the Tkinter event loop."""

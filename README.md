@@ -54,6 +54,8 @@ outlined in the figure below:
 usage: run.py [-h] -i FAST5 [-r CHANNEL_RANGE | -s CHANNEL_SPECIFIC]
               [-b BLACKLIST] [--duration MIN MAX]
               [--min-irio MIN_IRIO] [--strict-irio STRICT_IRIO]
+              [-o TSV] [--output-clean TSV] [--output-skipped TSV]
+              [--max-events-clean MAX_EVENTS_CLEAN]
 
 Detect events corresponding to short, single miRNA translocations
 
@@ -69,17 +71,26 @@ optional arguments:
                         Channels to skip, comma-separated (applied after
                         range/selection)
   --duration MIN MAX    Event duration window in timepoints (default:
-                        (4, 1000))
-  --min-irio MIN_IRIO   Minimum Ir/Io threshold (default: 0.3)
+                        (4, 1200))
+  --min-irio MIN_IRIO   Minimum Ir/Io threshold (default: 0.55)
   --strict-irio STRICT_IRIO
                         Strict Ir/Io threshold applied to all samples
                         (default: 0.6)
+  -o TSV, --output TSV
+                        Output TSV for all detected events (default:
+                        <input>.detections.tsv)
+  --output-clean TSV    Output TSV excluding channels with too many events
+                        (default: <input>.detections.cleaned.tsv)
+  --output-skipped TSV  Output TSV listing channels excluded from the cleaned
+                        output (default: <input>.detections.skipped.tsv)
+  --max-events-clean MAX_EVENTS_CLEAN
+                        Max events per channel to keep in cleaned output
+                        (default: 20000)
 ```
 
 ## Example CLI
 
-`python3 run.py -i ../../Datasets/minion/20190718_miRNA21_40min_200mV.fast5 >
-20190718_miRNA21_40min_200mV.tsv &`
+`python3 run.py -i ../../Datasets/minion/20190718_miRNA21_40min_200mV.fast5 -r 1-64`
 
 ## Reference
 
