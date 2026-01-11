@@ -1,7 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime
 import sys
+from datetime import datetime
+from zoneinfo import ZoneInfo
+import os
+import subprocess
 from pathlib import Path
 from typing import Optional
 
@@ -10,7 +13,7 @@ from tkinter import ttk
 
 from run import MIN_IrIo, STRICT_IrIo, TPS_RANGE, start_detection, CHANNEL_RANGE
 
-API_NAME = "OsBp Detect v2.0"
+API_NAME = "OsBp Detect v3.0"
 WINDOW_SIZE = (400, 550)
 
 
@@ -121,7 +124,7 @@ class DetectionGUI:
     def open_file(self) -> None:
         """Prompt the user for a FAST5 file and remember the selection."""
         selected = filedialog.askopenfilename(
-            initialdir=".",
+            initialdir=str(Path.home()),
             title="Load file",
             filetypes=[("Bulk FAST5 files", ".fast5")],
         )
@@ -130,7 +133,9 @@ class DetectionGUI:
 
     def save_file(self) -> None:
         """Prompt for a parent directory that will receive detection results."""
-        selected = filedialog.askdirectory(initialdir=".", title="Select output folder")
+        selected = filedialog.askdirectory(
+            initialdir=str(Path.home()), title="Select output folder"
+        )
         if selected:
             self.out_fast5 = Path(selected).expanduser()
 
@@ -171,7 +176,8 @@ class DetectionGUI:
             return
 
         channel_ids = list(range(start_int, end_int + 1))
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        pst_now = datetime.now(ZoneInfo("America/Los_Angeles"))
+        timestamp = pst_now.strftime("%d-%m-%y_%H-%M-%S")
         base_dir = self.out_fast5.resolve()
         run_dir = base_dir / f"{timestamp}_osbp_result"
         if run_dir.exists():
@@ -188,15 +194,15 @@ class DetectionGUI:
         skipped_file = out_file.with_name(f"{out_file.stem}.skipped{suffix}")
 
         def _write_header(handle: object) -> None:
-            print("  _   _   _   _   _   _   _   _   _   _  ", file=handle)
-            print(" / \\ / \\ / \\ / \\ / \\ / \\ / \\ / \\ / \\ / \\ ", file=handle)
-            print("( O | s | B | p | D | e | t | e | c | t )", file=handle)
-            print(" \\_/ \\_/ \\_/ \\_/ \\_/ \\_/ \\_/ \\_/ \\_/ \\_/ \n", file=handle)
-            print("=============  Thresholds  =============", file=handle)
-            print(f"Event duration (in tps): {t_min} - {t_max}", file=handle)
-            print(f"Lowest Ir/Io < {min_irio}", file=handle)
-            print(f"All Ir/Io < {all_irio}", file=handle)
-            print("========================================\n", file=handle)
+            label_width = 12
+            print("OSBP Detect v3.0", file=handle)
+            print("-" * 40, file=handle)
+            print(f"{'Input FAST5':<{label_width}}: {self.in_fast5.name}", file=handle)
+            print(f"{'Duration':<{label_width}}: {t_min} - {t_max} tps", file=handle)
+            print(f"{'Lowest Ir/Io':<{label_width}}: < {min_irio}", file=handle)
+            print(f"{'All Ir/Io':<{label_width}}: < {all_irio}", file=handle)
+            print("-" * 40, file=handle)
+            print("", file=handle)
 
         with out_file.open("w", encoding="utf-8") as raw_handle, clean_file.open(
             "w", encoding="utf-8"
@@ -215,9 +221,15 @@ class DetectionGUI:
                 strict_thresh_i=all_irio,
             )
 
+        print(
+            f"FAST5 file processed successfully.\nOutput directory: {run_dir}",
+            file=sys.stderr,
+        )
+        self._open_output_dir(run_dir)
+
         messagebox.showinfo(
             API_NAME,
-            f"Analysis complete!\nOutput: {out_file}\nCleaned: {clean_file}\nSkipped: {skipped_file}",
+            f"Analysis complete!\nOutput folder: {run_dir}",
         )
         self.root.quit()
         self.root.destroy()
@@ -226,6 +238,18 @@ class DetectionGUI:
     def run(self) -> None:
         """Start the Tkinter event loop."""
         self.root.mainloop()
+
+    @staticmethod
+    def _open_output_dir(path: Path) -> None:
+        try:
+            if sys.platform == "darwin":
+                subprocess.run(["open", str(path)], check=False)
+            elif sys.platform.startswith("win"):
+                os.startfile(path)
+            else:
+                subprocess.run(["xdg-open", str(path)], check=False)
+        except Exception:
+            print(f"Unable to open output directory: {path}", file=sys.stderr)
 
 
 def main() -> None:
