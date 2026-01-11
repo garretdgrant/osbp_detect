@@ -57,7 +57,7 @@ just run-gui
 ```
 
 GUI runs create a timestamped output folder in the selected output directory
-named `dd-mm-yy_HH:MM:SS_osbp_result` using PST time. If that folder already
+named `dd-mm-yy_HH-MM-SS_osbp_result` using PST time. If that folder already
 exists (rare, since it requires two runs at the exact same second), an
 incrementing suffix is added (e.g., `_2`).
 

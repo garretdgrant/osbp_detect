@@ -177,7 +177,7 @@ class DetectionGUI:
 
         channel_ids = list(range(start_int, end_int + 1))
         pst_now = datetime.now(ZoneInfo("America/Los_Angeles"))
-        timestamp = pst_now.strftime("%d-%m-%y_%H:%M:%S")
+        timestamp = pst_now.strftime("%d-%m-%y_%H-%M-%S")
         base_dir = self.out_fast5.resolve()
         run_dir = base_dir / f"{timestamp}_osbp_result"
         if run_dir.exists():
