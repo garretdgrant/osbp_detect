@@ -11,10 +11,17 @@ from typing import Optional
 from tkinter import NSEW, StringVar, Tk, filedialog, messagebox
 from tkinter import ttk
 
-from run import MIN_IrIo, STRICT_IrIo, TPS_RANGE, start_detection, CHANNEL_RANGE
+from run import (
+    CHANNEL_RANGE,
+    MAX_EVENTS_CLEAN,
+    MIN_IrIo,
+    STRICT_IrIo,
+    TPS_RANGE,
+    start_detection,
+)
 
 API_NAME = "OsBp Detect v3.0"
-WINDOW_SIZE = (400, 550)
+WINDOW_SIZE = (400, 600)
 
 
 class DetectionGUI:
@@ -56,6 +63,7 @@ class DetectionGUI:
         self.max_time_var = StringVar(value=str(TPS_RANGE[1]))
         self.all_irio_var = StringVar(value=str(STRICT_IrIo))
         self.min_irio_var = StringVar(value=str(MIN_IrIo))
+        self.max_events_clean_var = StringVar(value=str(MAX_EVENTS_CLEAN))
 
         self._build_layout()
 
@@ -113,12 +121,19 @@ class DetectionGUI:
             row=18, column=1, padx=10, pady=3, sticky="ew"
         )
 
-        ttk.Frame(self.root, height=15).grid(row=19, column=0)
-        ttk.Frame(self.root, height=2).grid(row=20, column=0, columnspan=2, sticky="ew")
-        ttk.Frame(self.root, height=10).grid(row=21, column=0)
+        ttk.Label(self.root, text="max events (clean)").grid(
+            row=19, column=0, padx=10, sticky="e"
+        )
+        ttk.Entry(self.root, textvariable=self.max_events_clean_var).grid(
+            row=19, column=1, padx=10, pady=3, sticky="ew"
+        )
+
+        ttk.Frame(self.root, height=15).grid(row=20, column=0)
+        ttk.Frame(self.root, height=2).grid(row=21, column=0, columnspan=2, sticky="ew")
+        ttk.Frame(self.root, height=10).grid(row=22, column=0)
 
         ttk.Button(self.root, text="Run", command=self.execute).grid(
-            row=22, column=0, columnspan=2, padx=20, pady=8, sticky="ew"
+            row=23, column=0, columnspan=2, padx=20, pady=8, sticky="ew"
         )
 
     def open_file(self) -> None:
@@ -174,6 +189,14 @@ class DetectionGUI:
         except ValueError:
             messagebox.showerror("Error", "Ir/Io thresholds must be numeric")
             return
+        try:
+            max_events_clean = int(self.max_events_clean_var.get().strip())
+        except ValueError:
+            messagebox.showerror("Error", "Max events (clean) must be an integer")
+            return
+        if max_events_clean <= 0:
+            messagebox.showerror("Error", "Max events (clean) must be > 0")
+            return
 
         channel_ids = list(range(start_int, end_int + 1))
         pst_now = datetime.now(ZoneInfo("America/Los_Angeles"))
@@ -201,6 +224,7 @@ class DetectionGUI:
             print(f"{'Duration':<{label_width}}: {t_min} - {t_max} tps", file=handle)
             print(f"{'Lowest Ir/Io':<{label_width}}: < {min_irio}", file=handle)
             print(f"{'All Ir/Io':<{label_width}}: < {all_irio}", file=handle)
+            print(f"{'Max events':<{label_width}}: {max_events_clean}", file=handle)
             print("-" * 40, file=handle)
             print("", file=handle)
 
@@ -219,6 +243,7 @@ class DetectionGUI:
                 duration=(t_min, t_max),
                 min_thresh_i=min_irio,
                 strict_thresh_i=all_irio,
+                max_events_clean=max_events_clean,
             )
 
         print(
