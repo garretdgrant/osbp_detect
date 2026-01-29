@@ -8,8 +8,9 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
-from tkinter import NSEW, StringVar, Tk, filedialog, messagebox
+from tkinter import NSEW, StringVar, Tk, filedialog, messagebox, Canvas, Frame, Label, Entry, Button
 from tkinter import ttk
+from tkinter import font as tkfont
 
 from run import (
     CHANNEL_RANGE,
@@ -21,42 +22,55 @@ from run import (
 )
 
 API_NAME = "OsBp Detect v3.0"
-WINDOW_SIZE = (400, 600)
+WINDOW_SIZE = (520, 820)
 
 
 class DetectionGUI:
-    """Thin Tkinter wrapper around the CLI pipeline so non-terminal users can run detections."""
+    """Refined Tkinter interface for nanopore event detection with professional aesthetics."""
+
+    # Color Palette - Refined Scientific Instrument Theme
+    BG_PRIMARY = "#0a0e14"      # Deep space black
+    BG_SECONDARY = "#151b24"    # Elevated surface
+    BG_TERTIARY = "#1e2936"     # Card background
+    ACCENT_BLUE = "#00d4ff"     # Electric cyan
+    ACCENT_GLOW = "#0099cc"     # Dimmer glow
+    TEXT_PRIMARY = "#e8eef5"    # Soft white
+    TEXT_SECONDARY = "#8a99a8"  # Muted gray
+    TEXT_TERTIARY = "#5a6a7a"   # Subtle gray
+    BORDER_COLOR = "#2a3544"    # Subtle borders
+    INPUT_BG = "#1a2230"        # Input field background
+    INPUT_FOCUS = "#223344"     # Input focused state
 
     def __init__(self) -> None:
         self.root = Tk()
         self.root.title(API_NAME)
         self.root.geometry(f"{WINDOW_SIZE[0]}x{WINDOW_SIZE[1]}")
-        # Configure basic layout
+        self.root.configure(bg=self.BG_PRIMARY)
+        self.root.resizable(False, False)
+
+        # Configure grid
         self.root.columnconfigure(0, weight=1)
-        self.root.columnconfigure(1, weight=1)
 
-        # Style/theme setup
-        style = ttk.Style(self.root)
-        style.theme_use("clam")  # cleaner, cross-platform look
+        # Custom fonts
+        try:
+            self.font_title = tkfont.Font(family="SF Pro Display", size=24, weight="bold")
+            self.font_heading = tkfont.Font(family="SF Pro Text", size=11, weight="bold")
+            self.font_label = tkfont.Font(family="SF Pro Text", size=10)
+            self.font_mono = tkfont.Font(family="SF Mono", size=10)
+        except:
+            # Fallback fonts
+            self.font_title = tkfont.Font(family="Helvetica", size=24, weight="bold")
+            self.font_heading = tkfont.Font(family="Helvetica", size=11, weight="bold")
+            self.font_label = tkfont.Font(family="Helvetica", size=10)
+            self.font_mono = tkfont.Font(family="Courier", size=10)
 
-        # Dark-window + light-entry styling for macOS
-        self.root.configure(bg="#202020")
-
-        style.configure("TLabel", background="#202020", foreground="white")
-        style.configure("TFrame", background="#202020")
-
-        style.configure(
-            "TEntry",
-            foreground="#000000",
-            fieldbackground="#FFFFFF",
-            background="#FFFFFF",
-            insertcolor="#000000",
-        )
-        style.configure("TButton", padding=4)
-
+        # State
         self.in_fast5: Optional[Path] = None
         self.out_fast5: Optional[Path] = None
+        self.in_fast5_label_text = StringVar(value="No file selected")
+        self.out_fast5_label_text = StringVar(value="No folder selected")
 
+        # Parameters
         self.start_var = StringVar(value=str(CHANNEL_RANGE[0]))
         self.end_var = StringVar(value=str(CHANNEL_RANGE[1]))
         self.min_time_var = StringVar(value=str(TPS_RANGE[0]))
@@ -65,76 +79,197 @@ class DetectionGUI:
         self.min_irio_var = StringVar(value=str(MIN_IrIo))
         self.max_events_clean_var = StringVar(value=str(MAX_EVENTS_CLEAN))
 
+        # Build interface
+        self._apply_styles()
         self._build_layout()
 
+    def _apply_styles(self) -> None:
+        """Configure ttk styles for custom themed widgets."""
+        style = ttk.Style(self.root)
+        style.theme_use("clam")
+
+        # Card/Section frames
+        style.configure(
+            "Card.TFrame",
+            background=self.BG_TERTIARY,
+            relief="flat",
+        )
+
+        # Labels
+        style.configure(
+            "Heading.TLabel",
+            background=self.BG_TERTIARY,
+            foreground=self.ACCENT_BLUE,
+            font=self.font_heading,
+        )
+        style.configure(
+            "Label.TLabel",
+            background=self.BG_TERTIARY,
+            foreground=self.TEXT_SECONDARY,
+            font=self.font_label,
+        )
+        style.configure(
+            "Value.TLabel",
+            background=self.BG_TERTIARY,
+            foreground=self.TEXT_TERTIARY,
+            font=self.font_mono,
+        )
+
+        # Entry fields
+        style.configure(
+            "Custom.TEntry",
+            fieldbackground=self.INPUT_BG,
+            background=self.INPUT_BG,
+            foreground=self.TEXT_PRIMARY,
+            bordercolor=self.BORDER_COLOR,
+            lightcolor=self.INPUT_FOCUS,
+            darkcolor=self.INPUT_FOCUS,
+            insertcolor=self.ACCENT_BLUE,
+            relief="flat",
+        )
+        style.map(
+            "Custom.TEntry",
+            fieldbackground=[("focus", self.INPUT_FOCUS)],
+            bordercolor=[("focus", self.ACCENT_BLUE)],
+        )
+
+        # Buttons
+        style.configure(
+            "File.TButton",
+            background=self.BG_SECONDARY,
+            foreground=self.TEXT_PRIMARY,
+            bordercolor=self.BORDER_COLOR,
+            borderwidth=1,
+            relief="flat",
+            padding=(12, 8),
+            font=self.font_label,
+        )
+        style.map(
+            "File.TButton",
+            background=[("active", self.BG_TERTIARY)],
+            foreground=[("active", self.ACCENT_BLUE)],
+        )
+
+        style.configure(
+            "Run.TButton",
+            background=self.ACCENT_BLUE,
+            foreground=self.BG_PRIMARY,
+            borderwidth=0,
+            relief="flat",
+            padding=(16, 12),
+            font=self.font_heading,
+        )
+        style.map(
+            "Run.TButton",
+            background=[("active", self.ACCENT_GLOW)],
+        )
+
+    def _create_card(self, parent, row: int) -> ttk.Frame:
+        """Create a styled card container."""
+        card = ttk.Frame(parent, style="Card.TFrame", padding=16)
+        card.grid(row=row, column=0, padx=24, pady=10, sticky="ew")
+        return card
+
+    def _create_section_heading(self, parent, text: str, row: int) -> None:
+        """Create a section heading with accent styling."""
+        label = ttk.Label(parent, text=text, style="Heading.TLabel")
+        label.grid(row=row, column=0, columnspan=2, sticky="w", pady=(0, 8))
+
+    def _create_input_row(
+        self, parent, row: int, label_text: str, textvariable: StringVar
+    ) -> None:
+        """Create a labeled input field row."""
+        label = ttk.Label(parent, text=label_text, style="Label.TLabel")
+        label.grid(row=row, column=0, sticky="w", pady=4)
+
+        entry = ttk.Entry(
+            parent, textvariable=textvariable, style="Custom.TEntry", font=self.font_mono
+        )
+        entry.grid(row=row, column=1, sticky="ew", pady=4, padx=(16, 0))
+        parent.columnconfigure(1, weight=1)
+
     def _build_layout(self) -> None:
-        """Lay out the 3 input blocks: file I/O, channel range, detection thresholds."""
-        ttk.Frame(self.root, height=10).grid(row=0, column=0)
-        ttk.Label(
-            self.root, text="1. File I/O:", font=("Helvetica", 10, "bold")
-        ).grid(row=1, column=0, columnspan=2, padx=20, pady=(0, 4), sticky="w")
-        ttk.Button(
-            self.root, text="Open FAST5 File", command=self.open_file
-        ).grid(row=2, column=0, columnspan=2, padx=20, pady=4, sticky="ew")
-        ttk.Frame(self.root, height=5).grid(row=3, column=0)
-        ttk.Button(
-            self.root, text="Select Output Folder", command=self.save_file
-        ).grid(row=4, column=0, columnspan=2, padx=20, pady=4, sticky="ew")
+        """Build the refined interface with card-based sections."""
+        # Header
+        header_frame = Frame(self.root, bg=self.BG_PRIMARY, height=70)
+        header_frame.grid(row=0, column=0, sticky="ew", padx=24, pady=(20, 8))
+        header_frame.grid_propagate(False)
 
-        ttk.Frame(self.root, height=15).grid(row=5, column=0)
-        ttk.Frame(self.root, height=2).grid(row=6, column=0, columnspan=2, sticky="ew")
-        ttk.Frame(self.root, height=10).grid(row=7, column=0)
+        title = Label(
+            header_frame,
+            text="OsBp Detect",
+            font=self.font_title,
+            fg=self.TEXT_PRIMARY,
+            bg=self.BG_PRIMARY,
+        )
+        title.pack(anchor="w", pady=(8, 0))
 
-        ttk.Label(
-            self.root, text="2. Channels:", font=("Helvetica", 10, "bold")
-        ).grid(row=8, column=0, columnspan=2, padx=20, pady=(0, 4), sticky="w")
-        ttk.Label(self.root, text="Start").grid(row=9, column=0, padx=10, sticky="e")
-        ttk.Entry(self.root, textvariable=self.start_var).grid(
-            row=9, column=1, padx=10, pady=3, sticky="ew"
+        subtitle = Label(
+            header_frame,
+            text="Nanopore Event Detection System",
+            font=self.font_label,
+            fg=self.TEXT_TERTIARY,
+            bg=self.BG_PRIMARY,
         )
-        ttk.Label(self.root, text="End").grid(row=10, column=0, padx=10, sticky="e")
-        ttk.Entry(self.root, textvariable=self.end_var).grid(
-            row=10, column=1, padx=10, pady=3, sticky="ew"
-        )
+        subtitle.pack(anchor="w", pady=(2, 0))
 
-        ttk.Frame(self.root, height=15).grid(row=11, column=0)
-        ttk.Frame(self.root, height=2).grid(row=12, column=0, columnspan=2, sticky="ew")
-        ttk.Frame(self.root, height=10).grid(row=13, column=0)
+        # Section 1: File I/O
+        card1 = self._create_card(self.root, row=1)
+        self._create_section_heading(card1, "01 — FILE I/O", row=0)
 
-        ttk.Label(
-            self.root, text="3. Thresholds:", font=("Helvetica", 10, "bold")
-        ).grid(row=14, column=0, columnspan=2, padx=20, pady=(0, 4), sticky="w")
-        ttk.Label(self.root, text="min(time)").grid(row=15, column=0, padx=10, sticky="e")
-        ttk.Entry(self.root, textvariable=self.min_time_var).grid(
-            row=15, column=1, padx=10, pady=3, sticky="ew"
+        btn_open = ttk.Button(
+            card1,
+            text="Select FAST5 File",
+            command=self.open_file,
+            style="File.TButton",
         )
-        ttk.Label(self.root, text="max(time)").grid(row=16, column=0, padx=10, sticky="e")
-        ttk.Entry(self.root, textvariable=self.max_time_var).grid(
-            row=16, column=1, padx=10, pady=3, sticky="ew"
-        )
-        ttk.Label(self.root, text="all(Ir/Io)").grid(row=17, column=0, padx=10, sticky="e")
-        ttk.Entry(self.root, textvariable=self.all_irio_var).grid(
-            row=17, column=1, padx=10, pady=3, sticky="ew"
-        )
-        ttk.Label(self.root, text="min(Ir/Io)").grid(row=18, column=0, padx=10, sticky="e")
-        ttk.Entry(self.root, textvariable=self.min_irio_var).grid(
-            row=18, column=1, padx=10, pady=3, sticky="ew"
-        )
+        btn_open.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 8))
 
-        ttk.Label(self.root, text="max events (clean)").grid(
-            row=19, column=0, padx=10, sticky="e"
+        file_status = ttk.Label(
+            card1,
+            textvariable=self.in_fast5_label_text,
+            style="Value.TLabel",
         )
-        ttk.Entry(self.root, textvariable=self.max_events_clean_var).grid(
-            row=19, column=1, padx=10, pady=3, sticky="ew"
-        )
+        file_status.grid(row=2, column=0, columnspan=2, sticky="w", pady=(0, 16))
 
-        ttk.Frame(self.root, height=15).grid(row=20, column=0)
-        ttk.Frame(self.root, height=2).grid(row=21, column=0, columnspan=2, sticky="ew")
-        ttk.Frame(self.root, height=10).grid(row=22, column=0)
-
-        ttk.Button(self.root, text="Run", command=self.execute).grid(
-            row=23, column=0, columnspan=2, padx=20, pady=8, sticky="ew"
+        btn_output = ttk.Button(
+            card1,
+            text="Select Output Folder",
+            command=self.save_file,
+            style="File.TButton",
         )
+        btn_output.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(0, 8))
+
+        output_status = ttk.Label(
+            card1,
+            textvariable=self.out_fast5_label_text,
+            style="Value.TLabel",
+        )
+        output_status.grid(row=4, column=0, columnspan=2, sticky="w")
+
+        # Section 2: Channels
+        card2 = self._create_card(self.root, row=2)
+        self._create_section_heading(card2, "02 — CHANNEL RANGE", row=0)
+        self._create_input_row(card2, row=1, label_text="Start Channel", textvariable=self.start_var)
+        self._create_input_row(card2, row=2, label_text="End Channel", textvariable=self.end_var)
+
+        # Section 3: Detection Parameters
+        card3 = self._create_card(self.root, row=3)
+        self._create_section_heading(card3, "03 — DETECTION PARAMETERS", row=0)
+        self._create_input_row(card3, row=1, label_text="Min Time (tps)", textvariable=self.min_time_var)
+        self._create_input_row(card3, row=2, label_text="Max Time (tps)", textvariable=self.max_time_var)
+        self._create_input_row(card3, row=3, label_text="Strict Ir/Io", textvariable=self.all_irio_var)
+        self._create_input_row(card3, row=4, label_text="Min Ir/Io", textvariable=self.min_irio_var)
+        self._create_input_row(card3, row=5, label_text="Max Events (clean)", textvariable=self.max_events_clean_var)
+
+        # Run Button
+        btn_run = ttk.Button(
+            self.root,
+            text="RUN DETECTION",
+            command=self.execute,
+            style="Run.TButton",
+        )
+        btn_run.grid(row=4, column=0, padx=24, pady=(10, 20), sticky="ew")
 
     def open_file(self) -> None:
         """Prompt the user for a FAST5 file and remember the selection."""
@@ -145,6 +280,7 @@ class DetectionGUI:
         )
         if selected:
             self.in_fast5 = Path(selected).expanduser()
+            self.in_fast5_label_text.set(f"✓ {self.in_fast5.name}")
 
     def save_file(self) -> None:
         """Prompt for a parent directory that will receive detection results."""
@@ -153,6 +289,11 @@ class DetectionGUI:
         )
         if selected:
             self.out_fast5 = Path(selected).expanduser()
+            # Truncate long paths for display
+            display_path = str(self.out_fast5)
+            if len(display_path) > 40:
+                display_path = "..." + display_path[-37:]
+            self.out_fast5_label_text.set(f"✓ {display_path}")
 
     def execute(self) -> None:
         """Validate inputs, then redirect stdout to the TSV file while running start_detection."""

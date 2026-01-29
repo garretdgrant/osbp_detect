@@ -12,7 +12,7 @@ TPS_RANGE: Tuple[int, int] = (4, 1200)  # Event duration bounds in samples ("tim
 IO_RANGE: Tuple[int, int] = (150, 300)  # Expected open-pore current window in pA.
 MIN_IrIo: float = 0.55  # Minimum event depth ratio to Io (Ir/Io).
 STRICT_IrIo: float = 0.60  # Strict Ir/Io threshold applied across all samples.
-MAX_EVENTS_CLEAN: int = 20000  # Drop channels above this count in the cleaned TSV.
+MAX_EVENTS_CLEAN: int = 50000  # Drop channels above this count in the cleaned TSV.
 
 
 def start_detection(

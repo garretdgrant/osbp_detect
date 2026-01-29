@@ -75,7 +75,7 @@ creates three TSVs by default:
 - `<input>.detections.skipped.tsv` listing the excluded channels
 
 Override filenames with `--output`, `--output-clean`, and `--output-skipped`.
-Control the cleaning threshold via `--max-events-clean` (default: 20000).
+Control the cleaning threshold via `--max-events-clean` (default: 50000).
 
 ## C. Update Software
 
