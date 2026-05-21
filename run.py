@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 from typing import Iterable, List, Optional, Sequence, TextIO, Tuple, Union
 
+from src.excel_analysis import create_analysis_workbook
 from src.fast5_utils import OsBp_FAST5
 from src.signal_utils import detect_events, get_signal_pA
 
@@ -223,6 +224,19 @@ def cli(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--output-xlsx",
+        metavar="XLSX",
+        help=(
+            "Output Excel analysis workbook "
+            "(default: <input>.detections.analysis.xlsx)"
+        ),
+    )
+    parser.add_argument(
+        "--no-xlsx",
+        action="store_true",
+        help="Do not create the Excel analysis workbook.",
+    )
+    parser.add_argument(
         "--max-events-clean",
         type=int,
         default=MAX_EVENTS_CLEAN,
@@ -243,6 +257,9 @@ def cli(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     default_output_skipped = input_path.with_name(
         f"{input_path.stem}.detections.skipped.tsv"
     )
+    default_output_xlsx = input_path.with_name(
+        f"{input_path.stem}.detections.analysis.xlsx"
+    )
     args.output_path = Path(args.output).expanduser() if args.output else default_output
     args.output_clean_path = (
         Path(args.output_clean).expanduser()
@@ -253,6 +270,11 @@ def cli(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         Path(args.output_skipped).expanduser()
         if args.output_skipped
         else default_output_skipped
+    )
+    args.output_xlsx_path = (
+        Path(args.output_xlsx).expanduser()
+        if args.output_xlsx
+        else default_output_xlsx
     )
     return args
 
@@ -272,6 +294,12 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             min_thresh_i=args.min_irio,
             strict_thresh_i=args.strict_irio,
             max_events_clean=args.max_events_clean,
+        )
+    if not args.no_xlsx:
+        create_analysis_workbook(
+            cleaned_tsv=args.output_clean_path,
+            skipped_tsv=args.output_skipped_path,
+            workbook_path=args.output_xlsx_path,
         )
 
 

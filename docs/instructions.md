@@ -19,8 +19,9 @@ Before continuing, review and complete the dependency checklist in
    git clone https://github.com/garretdgrant/osbp_detect.git
    cd osbp_detect
    ```
-3. Run the automated setup (installs uv-managed Python 3.12, creates `.venv`,
-   verifies Tk support, and installs dependencies):
+3. Run the automated setup (installs the uv-managed Python version configured
+   in the `justfile`, creates `.venv`, verifies Tk support, and installs
+   dependencies):
    ```bash
    just install-prereqs
    ```
@@ -74,13 +75,16 @@ python3 run.py -i /path/to/file.fast5 -r 1-64
 ```
 
 Use `-s` for explicit channel lists and `-b` to blacklist channels. The CLI now
-creates three TSVs by default:
+creates three TSVs and one Excel analysis workbook by default:
 
 - `<input>.detections.tsv` for all detected events
 - `<input>.detections.cleaned.tsv` excluding channels with too many events
 - `<input>.detections.skipped.tsv` listing the excluded channels
+- `<input>.detections.analysis.xlsx` with cleaned events, skipped-channel
+  summary, histogram bins, and a histogram chart
 
-Override filenames with `--output`, `--output-clean`, and `--output-skipped`.
+Override filenames with `--output`, `--output-clean`, `--output-skipped`, and
+`--output-xlsx`. Use `--no-xlsx` to skip workbook creation.
 Control the cleaning threshold via `--max-events-clean` (default: 100000).
 
 ## C. Update Software

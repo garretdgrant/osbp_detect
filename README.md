@@ -60,6 +60,7 @@ usage: run.py [-h] -i FAST5 [-r CHANNEL_RANGE | -s CHANNEL_SPECIFIC]
               [-b BLACKLIST] [--duration MIN MAX]
               [--min-irio MIN_IRIO] [--strict-irio STRICT_IRIO]
               [-o TSV] [--output-clean TSV] [--output-skipped TSV]
+              [--output-xlsx XLSX] [--no-xlsx]
               [--max-events-clean MAX_EVENTS_CLEAN]
 
 Detect events corresponding to short, single miRNA translocations
@@ -88,6 +89,9 @@ optional arguments:
                         (default: <input>.detections.cleaned.tsv)
   --output-skipped TSV  Output TSV listing channels excluded from the cleaned
                         output (default: <input>.detections.skipped.tsv)
+  --output-xlsx XLSX    Output Excel analysis workbook (default:
+                        <input>.detections.analysis.xlsx)
+  --no-xlsx             Do not create the Excel analysis workbook.
   --max-events-clean MAX_EVENTS_CLEAN
                         Max events per channel to keep in cleaned output
                         (default: 100000)

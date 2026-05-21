@@ -20,6 +20,7 @@ from run import (
     TPS_RANGE,
     start_detection,
 )
+from src.excel_analysis import create_analysis_workbook
 
 API_NAME = "OsBp Detect v3.0"
 WINDOW_SIZE = (520, 820)
@@ -356,6 +357,7 @@ class DetectionGUI:
         suffix = out_file.suffix or ".tsv"
         clean_file = out_file.with_name(f"{out_file.stem}.cleaned{suffix}")
         skipped_file = out_file.with_name(f"{out_file.stem}.skipped{suffix}")
+        xlsx_file = out_file.with_name(f"{out_file.stem}.analysis.xlsx")
 
         def _write_header(handle: object) -> None:
             label_width = 12
@@ -386,6 +388,11 @@ class DetectionGUI:
                 strict_thresh_i=all_irio,
                 max_events_clean=max_events_clean,
             )
+        create_analysis_workbook(
+            cleaned_tsv=clean_file,
+            skipped_tsv=skipped_file,
+            workbook_path=xlsx_file,
+        )
 
         print(
             f"FAST5 file processed successfully.\nOutput directory: {run_dir}",
