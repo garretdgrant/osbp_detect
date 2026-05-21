@@ -90,7 +90,7 @@ optional arguments:
                         output (default: <input>.detections.skipped.tsv)
   --max-events-clean MAX_EVENTS_CLEAN
                         Max events per channel to keep in cleaned output
-                        (default: 50000)
+                        (default: 100000)
 ```
 
 ## Example CLI

@@ -2,8 +2,42 @@
 
 from __future__ import annotations
 
+import importlib.util
+import os
 import sys
+from pathlib import Path
 from typing import NamedTuple, Optional
+
+
+def _configure_hdf5_plugin_path() -> None:
+    """Point HDF5 at bundled filter plugins before h5py initializes."""
+    plugin_paths = []
+    for package_name, plugin_subdir in (
+        ("hdf5plugin", "plugins"),
+        ("ont_fast5_api", "vbz_plugin"),
+    ):
+        spec = importlib.util.find_spec(package_name)
+        if spec is None or spec.submodule_search_locations is None:
+            continue
+
+        package_dir = Path(next(iter(spec.submodule_search_locations)))
+        plugin_dir = package_dir / plugin_subdir
+        if plugin_dir.is_dir():
+            plugin_paths.append(str(plugin_dir))
+
+    existing_paths = [
+        path
+        for path in os.environ.get("HDF5_PLUGIN_PATH", "").split(os.pathsep)
+        if path
+    ]
+    missing_paths = [path for path in plugin_paths if path not in existing_paths]
+    if missing_paths:
+        os.environ["HDF5_PLUGIN_PATH"] = os.pathsep.join(
+            [*missing_paths, *existing_paths]
+        )
+
+
+_configure_hdf5_plugin_path()
 
 import h5py
 import hdf5plugin  # noqa: F401  (ensures HDF5 compression filters are registered)

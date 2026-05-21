@@ -19,8 +19,8 @@ Before continuing, review and complete the dependency checklist in
    git clone https://github.com/garretdgrant/osbp_detect.git
    cd osbp_detect
    ```
-3. Run the automated setup (installs Python, creates `.venv`, upgrades pip, and
-   installs dependencies):
+3. Run the automated setup (installs uv-managed Python 3.12, creates `.venv`,
+   verifies Tk support, and installs dependencies):
    ```bash
    just install-prereqs
    ```
@@ -56,6 +56,12 @@ Before continuing, review and complete the dependency checklist in
 just run-gui
 ```
 
+The GUI recipe launches the project interpreter directly:
+
+```bash
+SYSTEM_VERSION_COMPAT=0 .venv/bin/python3 gui.py
+```
+
 GUI runs create a timestamped output folder in the selected output directory
 named `dd-mm-yy_HH-MM-SS_osbp_result` using PST time. If that folder already
 exists (rare, since it requires two runs at the exact same second), an
@@ -75,7 +81,7 @@ creates three TSVs by default:
 - `<input>.detections.skipped.tsv` listing the excluded channels
 
 Override filenames with `--output`, `--output-clean`, and `--output-skipped`.
-Control the cleaning threshold via `--max-events-clean` (default: 50000).
+Control the cleaning threshold via `--max-events-clean` (default: 100000).
 
 ## C. Update Software
 
@@ -85,5 +91,4 @@ git pull
 just install-prereqs
 ```
 
-Re-activate your virtual environment before reinstalling dependencies if you
-opened a new terminal session.
+Re-activate your virtual environment if you opened a new terminal session.
